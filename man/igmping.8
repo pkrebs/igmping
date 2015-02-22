@@ -1,0 +1,101 @@
+.TH igmping 8
+.SH NAME
+igmping - Send IGMP queries and display received IGMP reports
+.SH SYNOPSIS
+.B igmping
+.RB "[" "-hvlf" "]"
+.RB "[" "-V "
+.IR "version" "]"
+.RB "[" "-t "
+.IR "timeout" "]"
+.RB "[" "-m "
+.IR "max_resp_time/code" "]"
+.RB "[" "-s "
+.IR "source_address_list" "]"
+.RB "[" "-q "
+.IR "QRV_value" "]"
+.RB "[" "-r "
+.IR "QQIC_value" "]"
+.RI "[" "group_address" "]"
+.SH DESCRIPTION
+.B igmping
+is a tool for generating IGMP queries and listening for IGMP reports. It's main purpose is to act as a ``fake'' IGMP querier for testing IGMP-capable end systems without having to configure a local router or wait for query timeouts. Usage and output are intended to be very similar to the traditional
+.B ping
+tool, except with IGMP queries/reports instead of ICMP ECHO requests/responses.
+.PP
+Note that
+.B igmping
+is not an actual IGMP querier, i. e. sending and receiving of IGMP messages is completely stateless. Furthermore, there is no reaction on incoming IGMP queries from actual queriers on the same network. It is therefore advised to use the tool in isolated networks in order to not interfere with normal IGMP operation.
+.SH OPTIONS
+.TP
+.BR "-h" 
+Display help.
+.TP
+.BR "-v" 
+Show version.
+.TP
+.BR "-l"
+Start
+.B igmping
+in ``listen'' mode. No IGMP queries are sent but all received IGMP reports are displayed.
+.TP
+.BR "-f"
+Set the S flag in sent IGMP queries.
+.TP
+.BI "-V" " version"
+Specify the IGMP version of the sent IGMP query. Valid values are "1", "2", or "3". The default value is "2".
+.TP
+.BI "-t" " timeout"
+Specify a timeout for receiving IGMP reports in multiples of 100ms. When the timeout runs out,
+.B "igmping "
+terminates with an exit code depending on whether reports were received or not (see below). The timeout is not dependent on the Max Resp Time/Code value and can be smaller, equal or longer than said value. If 
+.I "timeout "
+is set to 0, the timeout is disabled and
+.B "igmping "
+must be terminated via signal (e. g. STRG+C). The default value is 10s.
+.TP
+.BI "-m" " max_resp_time/code"
+Specify the value of the Max Resp Time/Code field in the IGMP query, interpreted as multiples of 100ms. The allowed range of the value depends on the IGMP version set with the 
+.B "-V "
+option: For IGMPv2, the allowed range is 1-255 inclusive. For IGMPv3, the allowed range is 1-31744 inclusive. For IGMPv1, this options is ignored when present (IGMPv1 uses a global default value of 100, which equals 10s). Note that for IGMPv3, the choosen value is automatically converted to the nearest smaller valid Max Resp Code according to RFC 3376 when the value is greater than 127. The default value for IGMPv2 and IGMPv3 is 100 (which equals 10s).
+.TP
+.BI "-s" " source_address_list"
+Specify a list of unicast IP addresses separated by comma (,) which should be used as source addresses in a group-and-source-specific query. This option is only meaningful for a IGMPv3 query and is ignored for the other versions.
+.TP
+.BI "-q" " QRV_value"
+Specify the value of the QRV field in a IGMPv3 query. The allowed range is 0-7. The default value is 0. This option is ignored for IGMPv1 and IGMPv2.
+.TP
+.BI "-r" " QQIC_value"
+Specify the value of the QQIC field in a IGMPv3 query. The allowed range is 0-31744. The default value is 0. This option is ignored for IGMPv1 and IGMPv2.
+.PP
+If 
+.B "igmping "
+is started withou argument, a general query is sent (i. e. the group address field is set to the wildcard address 0.0.0.0). If the optional argument
+.I "group_address "
+is set to a multicast group address and the query version is set to IGMPv2 or IGMPv3, a group-specific query for the given address is sent instead. Since IGMPv1 only supports general queries, the argument is ignored in case of IGMPv1. This allows for the following query types:
+.TP
+  IGMPv1 (general) query - set the version to "1"
+.TP
+  IGMPv2 general query - set the version to "2", omit \fIgroup_address \fRargument
+.TP
+  IGMPv2 group-specific query - set the version to "2", specify a \fIgroup_address \fRargument
+.TP
+  IGMPv3 general query - set the version to "3", omit \fIgroup_address \fRargument
+.TP
+  IGMPv3 group-specific query - set the version to "3", do not set a source address list, specify a \fIgroup_address \fRargument
+.TP
+  IGMPv3 group-and-source-specific query - set the version to "3", set a source address list via \fB-s \fRoption, specify a \fIgroup_address \fRargument
+.SH DIAGNOSTICS
+The exit status is -1 for a system call failure (e. g. sockets could not be opened), 1 for invalid command line arguments, 0 when at least one IGMP report was received and 2 when no IGMP report was received until timeout.
+.SH NOTES
+In order to open and configure the sockets necessary for crafting IGMP queries and sniffing reports,
+.B "igmping "
+has to be run as superuser. Alternatively, one can set the required capabilites on the binary with e. g.:
+.TP
+  $ setcap CAP_NET_RAW=eip /usr/bin/igmping
+.PP
+which allows execution as normal user.
+.SH AUTHORS
+Peter Krebs <pkrebs@gmail.com>
+.SH SEE ALSO
+ping(8)

@@ -1,0 +1,31 @@
+igmping
+==========
+
+igmping is a tool for sending IGMP queries and receiving IGMP reports. It's main purpose is to act as a ``fake'' IGMP querier for testing IGMP-capable end systems.
+
+Installation
+--------------
+
+Compilation and installation follows the usual 3 steps:
+
+1) ./configure
+2) make
+3) make install
+
+Per default, igmping will be installed as a single binary in /usr/bin. Use the ``--prefix'' option for ./configure to change the installation directory.
+
+Notes
+-------
+
+igmping uses a raw socket for sending IGMP queries and a PF_PACKET socket for sniffing IGMP reports. To open these sockets and set the necessary socket options, superuser permissions are needed. Alternatively, the required capabilities can be set directly on the binary, for example with:
+
+$ setcap CAP_NET_RAW=eip /usr/bin/igmping
+
+This should allow execution as a normal user.
+
+As PF_PACKET sockets are Linux-specific, igmping will probably not compile on other operating systems.
+
+Contact
+---------
+
+If you discover any bugs or want to give feedback, send a mail to: pkrebs@gmail.com
