@@ -15,33 +15,15 @@
  * limitations under the License.
  */
 
-/*
- * timeout/maxresp interaction:
- * - normal mode:
- * 		- no timeout, no maxresp: default timeout, default maxresp
- * 		- timeout = 0, no maxresp: no timeout, default maxresp
- * 		- timeout > 0, no maxresp: set timeout (max 31744), maxresp = timeout (v3: same value, v2: clamped to 255, v1: default timeout)
- * 		- no timeout, maxresp set: default timeout, set maxresp (v2: max 255, v3: mac 31744)
- * 		- timeout = 0, maxresp set: no timeout, set maxresp (v2: max 255, v3: max 31744)
- * 		- timeout > 0, maxresp set: set timeout (max 31744), set maxresp
- * 	- listen mode:
- * 		- no timeout: default timeout
- * 		- timeout = 0: no timeout
- * 		- timeout > 0, set timeout (full range allowed)
- *
- *
- * todo:
- *
- * @author Peter Krebs
- */
-
 #include "igmping.h"
 
 #define _POSIX_C_SOURCE 200112L
 
-/* v3: general qry: group addr = 0| destaddr = 224.0.0.1, group qry: group addr|destaddr = mc addr, group-src-qry: group addr|destaddr = mc addr, source addr list not empty
- * v2: like v3 without group-src
- * v1: groupaddr = 0, destaddr = 224.0.0.1*/
+/*
+ * returns:
+ * -1 ... send error
+ * 0 ... query successfully sent
+ */
 int send_igmp_query(int socket_desc, const struct ipv4_address *group_address, const struct igmp_send_options *send_options, const struct source_address_list *src_addr_list)
 {
 	int status = 0;
@@ -125,6 +107,7 @@ int send_igmp_query(int socket_desc, const struct ipv4_address *group_address, c
 	status = send_message(socket_desc, destaddr, raw_qry, raw_qry_len, send_options->version);
 	if (status != 0)
 	{
+		free(raw_qry);
 		return -1;
 	}
 
@@ -153,10 +136,13 @@ void free_receive_vector(struct igmp_receive_vector *receive_vector)
 	free_report_v3(&receive_vector->report_v3);
 }
 
-/* 0 ... parsed valid igmp report/leave group
- * 1 ... parsed valid igmp query
- * 2 ... parsed invalid igmp message
- * */
+/*
+ * returns:
+ * 0 ... IGMPv1 report valid
+ * 1 ... valid IGMP query parsed
+ * 2 ... invalid IGMP message parsed (e. g. checksum incorrect)
+ * 3 ... invalid IGMP report message parsed
+ */
 int process_igmp_message(struct igmp_receive_vector *receive_vector, const unsigned char raw_message[], size_t raw_message_len, const char **error_string)
 {
 	unsigned char msgtype = 0U;
@@ -171,10 +157,17 @@ int process_igmp_message(struct igmp_receive_vector *receive_vector, const unsig
 		return 2;
 	}
 
+	if (raw_message_len & 1)
+	{
+		/* length of IGMP messages must always be even */
+		*error_string = PARSE_ERROR_INV_MSGLEN;
+		return 2;
+	}
+
 	/* verify checksum */
 	if (verify_checksum(raw_message, raw_message_len))
 	{
-		*error_string = PARSE_ERROR_TOO_SHORT;
+		*error_string = PARSE_ERROR_CHKSUM_FAILED;
 		return 2;
 	}
 
@@ -199,32 +192,32 @@ int process_igmp_message(struct igmp_receive_vector *receive_vector, const unsig
 			return 1;
 			break;
 		case 0x12:	/* membership report v1 */
+			receive_vector->message_type = IGMP_REPORT_V1;
 			if (parse_report_v1(&receive_vector->report_v1, raw_message, raw_message_len, error_string) != 0)
 			{
-				return 2;
+				return 3;
 			}
-			receive_vector->message_type = IGMP_REPORT_V1;
 			break;
 		case 0x16:	/* membership report v2 */
+			receive_vector->message_type = IGMP_REPORT_V2;
 			if (parse_report_v2(&receive_vector->report_v2, raw_message, raw_message_len, error_string) != 0)
 			{
-				return 2;
+				return 3;
 			}
-			receive_vector->message_type = IGMP_REPORT_V2;
 			break;
 		case 0x17:	/* leave */
+			receive_vector->message_type = IGMP_LEAVE_V2;
 			if (parse_leave_group_v2(&receive_vector->leave_group_v2, raw_message, raw_message_len, error_string) != 0)
 			{
-				return 2;
+				return 3;
 			}
-			receive_vector->message_type = IGMP_LEAVE_V2;
 			break;
 		case 0x22:	/* membership report v3 */
+			receive_vector->message_type = IGMP_REPORT_V3;
 			if (parse_report_v3(&receive_vector->report_v3, raw_message, raw_message_len, error_string) != 0)
 			{
-				return 2;
+				return 3;
 			}
-			receive_vector->message_type = IGMP_REPORT_V3;
 			break;
 		default:	/* unknown type */
 			*error_string = PARSE_ERROR_UNKNOWN_TYPE;
@@ -236,11 +229,16 @@ int process_igmp_message(struct igmp_receive_vector *receive_vector, const unsig
 	return 0;
 }
 
-/* 0 ... received valid igmp report or leave group
- * 1 ... timeout and no message received
- * 2 ... igmp message other than report or leave group received
- * 3 ... invalid or non igmp-message received
- * -1 ... receive error */
+/*
+ * returns:
+ * -1 ... receive error
+ * 0 ... received valid IGMP report or leave group message
+ * 1 ... timeout and no IGMP report received
+ * 2 ... received IGMP message other than report or leave group
+ * 3 ... received invalid IP or non IGMP-message
+ * 4 ... received invalid IGMP message (too short, checksum wrong)
+ * 5 ... received invalid IGMP report/leave group message
+ */
 int receive_igmp_report(int socket_desc, struct igmp_receive_vector *receive_vector, const struct timespec *timeout, const char **error_string)
 {
 	int status = 0;
@@ -297,7 +295,12 @@ int receive_igmp_report(int socket_desc, struct igmp_receive_vector *receive_vec
 		if (2 == status)
 		{
 			/* received invalid igmp message */
-			return 3;
+			return 4;
+		}
+		else if (3 == status)
+		{
+			/* received invalid IGMP report/leave group message */
+			return 5;
 		}
 		else if (1 == status)
 		{
@@ -311,6 +314,9 @@ int receive_igmp_report(int socket_desc, struct igmp_receive_vector *receive_vec
 
 void print_group_record_info(const struct igmp_group_record_v3 *group_record)
 {
+	unsigned int i = 0U;
+	struct ipv4_address tmp;
+
 	assert(group_record != NULL);
 
 	switch(group_record->record_type)
@@ -365,6 +371,22 @@ void print_group_record_info(const struct igmp_group_record_v3 *group_record)
 		}
 
 		printf("\n");
+	}
+	else
+	{
+		printf("{ ");
+
+		tmp = source_address_list_get(&group_record->source_list, 0);
+		print_ipv4_address(&tmp);
+
+		for (i = 1U; i < group_record->number_of_sources; i++)
+		{
+			printf(", ");
+			tmp = source_address_list_get(&group_record->source_list, i);
+			print_ipv4_address(&tmp);
+		}
+
+		printf(" }\n");
 	}
 }
 
@@ -429,9 +451,11 @@ void print_report_info(const struct igmp_receive_vector *receive_vector)
 	}
 }
 
-/* 0 ... received at least one valid IGMP report
+/* returns:
+ * -1 ... receive error
+ * 0 ... received at least one valid IGMP report
  * 1 ... received no valid IGMP report until timeout
- * -1 ... receive error */
+ */
 int receive_igmp_messages(int socket_desc, const struct timespec *timeout)
 {
 	int status = 0;
@@ -472,11 +496,53 @@ int receive_igmp_messages(int socket_desc, const struct timespec *timeout)
 		{
 			break;
 		}
+		else if (4 == status)
+		{
+			/* invalid IGMP message received */
+			printf("Received invalid IGMP message from ");
+			print_ipv4_address(&rec_vector.ip_info.source_address);
+			printf(": dst=");
+			print_ipv4_address(&rec_vector.ip_info.destination_address);
+			printf(" ttl=%u\n", rec_vector.ip_info.ttl);
+			printf("\tError: %s\n\n", error_string);
+		}
+		else if (5 == status)
+		{
+			/* invalid IGMP report/leave group received */
+			switch(rec_vector.message_type)
+			{
+				case IGMP_REPORT_V1:
+					printf("Received invalid IGMPv1 Report from ");
+					break;
+				case IGMP_REPORT_V2:
+					printf("Received invalid IGMPv2 Report from ");
+					break;
+				case IGMP_REPORT_V3:
+					printf("Received invalid IGMPv3 Report from ");
+					break;
+				case IGMP_LEAVE_V2:
+					printf("Received invalid IGMPv2 Leave Group from ");
+					break;
+				default:
+					printf("Received invalid unknown report from ");
+					break;
+			}
+
+			print_ipv4_address(&rec_vector.ip_info.source_address);
+			printf(": dst=");
+			print_ipv4_address(&rec_vector.ip_info.destination_address);
+			printf(" ttl=%u\n", rec_vector.ip_info.ttl);
+			printf("\tError: %s\n\n", error_string);
+		}
 		else if (0 == status)
 		{
 			print_report_info(&rec_vector);
 			received_reports++;
 			free_receive_vector(&rec_vector);
+		}
+		else
+		{
+			/* invalid IP or non-IGMP or non-report IGMP message received, just ignore */
 		}
 
 	}
@@ -509,8 +575,11 @@ void init_options(struct parsed_options *options)
 	options->query_set_flag = FALSE;
 }
 
-/* 1 ... non ip address ecountered
- * 2 ... non unicast address encountered */
+/* returns:
+ * 0 ... all parsed source addresses valid (unicast IPv4)
+ * 1 ... non IPv4 address ecountered
+ * 2 ... non unicast IPv4 address encountered
+ */
 int parse_sourceaddr_list(struct source_address_list *srclist, const char string[])
 {
 	size_t slen = 0U;
@@ -552,9 +621,10 @@ int parse_sourceaddr_list(struct source_address_list *srclist, const char string
 	return 0;
 }
 
-/* 0 ... all ok
+/* returns:
+ * 0 ... all parsed options valid
  * 1 ... parse error
- * 2 ... parse warning */
+ */
 int parse_options(struct parsed_options *options, int argc, char *argv[], const char **errstring)
 {
 	int status = 0;
@@ -1016,6 +1086,7 @@ int main(int argc, char *argv[])
 		default:
 			printf("Error: unknown mode\n");
 			return -1;
+			break;
 	}
 
 	return ECODE_OK;

@@ -17,6 +17,11 @@
 
 #include "igmping_socket.h"
 
+/*
+ * returns:
+ * -1 ... error opening socket or setting socket options (e. g. no permissions)
+ * 0 ... socket successfully opened and configured
+ */
 int open_send_socket(int *sock_desc, enum igmp_version version, const char **error_string)
 {
 	int status = 0;
@@ -63,6 +68,11 @@ int open_send_socket(int *sock_desc, enum igmp_version version, const char **err
 	return 0;
 }
 
+/*
+ * returns:
+ * -1 ... error opening socket or setting socket options (e. g. no permissions)
+ * 0 ... socket successfully opened and configured
+ */
 int open_receive_socket(int *sock_desc, const char **error_string)
 {
 	int status = 0;
@@ -106,6 +116,11 @@ int open_receive_socket(int *sock_desc, const char **error_string)
 	return 0;
 }
 
+/*
+ * returns:
+ * -1 ... send error or destination address invalid
+ * 0 ... message successfully sent
+ */
 int send_message(int socket_desc, const char destination_address[], const unsigned char raw_message[], size_t raw_message_len, enum igmp_version igmp_ver)
 {
 	int status = 0;
@@ -183,15 +198,21 @@ int send_message(int socket_desc, const char destination_address[], const unsign
 	sendlen = sendmsg(socket_desc, &msg, 0);
 	if ((sendlen < 0) || ((size_t) sendlen) != packlen)
 	{
+		freeaddrinfo(addrp);
 		return -1;
 	}
+
+	freeaddrinfo(addrp);
 
 	return 0;
 }
 
-/* -1 ... receive error
- * 0 ... valid ip message received
- * 1 ... invalid ip message or no igmp/multicast message received */
+/*
+ * returns:
+ * -1 ... socket receive error
+ * 0 ... valid IP message received
+ * 1 ... invalid IP, non-multicast or non-IGMP IP message received
+ */
 int receive_message(int socket_desc, struct ip_receive_info *receive_info, unsigned char raw_message[], size_t *raw_message_len)
 {
 	ssize_t recbytes = 0;

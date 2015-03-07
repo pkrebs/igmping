@@ -26,11 +26,15 @@
 
 #define _POSIX_C_SOURCE 200112L
 
+/* default value of receive timeout in multiples of 100ms  */
 #define DEFAULT_TIMEOUT 100U
+
+/* default value of Max Resp Time/Code field in v2/v3 queries */
 #define DEFAULT_MAXRESP 100U
 
 #define PARSE_ERROR_CHKSUM_FAILED "checksum invalid"
 #define PARSE_ERROR_TOO_SHORT "message too short"
+#define PARSE_ERROR_INV_MSGLEN "message length invalid"
 #define PARSE_ERROR_UNKNOWN_TYPE "unknown message type"
 
 enum igmp_version {	IGMP_V1 = 1,
@@ -64,9 +68,7 @@ int is_unicast_ip_address(const struct ipv4_address *address);
 int is_multicast_ip_address(const struct ipv4_address *address);
 
 void int_to_ipv4_address(struct ipv4_address *address, unsigned int address_int);
-void octett_to_string(char string[], unsigned char octett);
 void ip_address_to_string(char ip_string[], const struct ipv4_address *address);
-int string_to_octett(unsigned char *octett, const char string[]);
 int string_to_ip_address(struct ipv4_address *address, const char ip_string[]);
 void print_ipv4_address(const struct ipv4_address *address);
 

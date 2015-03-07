@@ -19,6 +19,8 @@
 
 #include "igmping_common.h"
 
+/* returns:
+ * timespec deadline as sum of current time and waittime */
 void get_deadline(struct timespec *deadline, const struct timespec *waittime)
 {
 	struct timespec now;
@@ -38,8 +40,11 @@ void get_deadline(struct timespec *deadline, const struct timespec *waittime)
 	deadline->tv_nsec = deadline->tv_nsec % 1000000000;
 }
 
-/* 0 ... remaining time greater 0
- * 1 ... no remaining time */
+/*
+ * returns:
+ * 0 ... current time earlier than deadline
+ * 1 ... current time equal or later than deadline
+ */
 int get_remaining_time(struct timespec *remaining_time, const struct timespec *deadline)
 {
 	struct timespec now;
@@ -92,6 +97,11 @@ int get_remaining_time(struct timespec *remaining_time, const struct timespec *d
 	return 0;
 }
 
+/*
+ * returns:
+ * 0 ... address is not a unicast ip address
+ * 1 ... address is a unicast ip address
+ */
 int is_unicast_ip_address(const struct ipv4_address *address)
 {
 	assert(address != NULL);
@@ -99,6 +109,11 @@ int is_unicast_ip_address(const struct ipv4_address *address)
 	return (address->octetts[0] < 224U);
 }
 
+/*
+ * returns:
+ * 0 ... address is not a multicast ip address
+ * 1 ... address is a multicast ip address
+ */
 int is_multicast_ip_address(const struct ipv4_address *address)
 {
 	assert(address != NULL);
@@ -117,7 +132,7 @@ void int_to_ipv4_address(struct ipv4_address *address, unsigned int address_int)
 	address->octetts[3] = address_int;
 }
 
-void octett_to_string(char string[], unsigned char octett)
+static void octett_to_string(char string[], unsigned char octett)
 {
 	const char digits[11] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
 
@@ -166,7 +181,12 @@ void ip_address_to_string(char ip_string[], const struct ipv4_address *address)
 	strcat(ip_string, octstr);
 }
 
-int string_to_octett(unsigned char *octett, const char string[])
+/*
+ * returns:
+ * -1 ... string not a valid octett for an IP address
+ * 0 ... otherwise
+ */
+static int string_to_octett(unsigned char *octett, const char string[])
 {
 	size_t len = 0U;
 	int tmp = 0;
@@ -192,6 +212,11 @@ int string_to_octett(unsigned char *octett, const char string[])
 	return 0;
 }
 
+/*
+ * returns:
+ * -1 ... string not a valid IPv4 address
+ * 0 ... otherwise
+ */
 int string_to_ip_address(struct ipv4_address *address, const char ip_string[])
 {
 	size_t i = 0U;
@@ -280,6 +305,11 @@ void calculate_checksum(unsigned char *checksum_high_byte, unsigned char *checks
 	*checksum_low_byte = checksum;
 }
 
+/*
+ * returns:
+ * -1 ... checksum invalid
+ * 0 ... checksum valid
+ */
 int verify_checksum(const unsigned char raw_message[], size_t raw_message_len)
 {
 	int status = 0;

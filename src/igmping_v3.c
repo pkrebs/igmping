@@ -94,6 +94,10 @@ void source_address_list_add_struct(struct source_address_list *list, struct ipv
 	list->list_len++;
 }
 
+/*
+ * returns:
+ * IPV4 address struct at given index in list (starting from 0)
+ */
 struct ipv4_address source_address_list_get(const struct source_address_list *list, size_t index)
 {
 	size_t i = 0U;
@@ -123,6 +127,10 @@ struct ipv4_address source_address_list_get(const struct source_address_list *li
 	return tmp;
 }
 
+/*
+ * returns:
+ * new source address list struct as deep copy of given list
+ */
 struct source_address_list source_address_list_clone(const struct source_address_list *list)
 {
 	struct source_address_list tmp;
@@ -148,6 +156,10 @@ struct source_address_list source_address_list_clone(const struct source_address
 	return tmp;
 }
 
+/*
+ * returns:
+ * length of given soure address list
+ */
 unsigned int source_address_list_get_length(const struct source_address_list *list)
 {
 	assert(list != NULL);
@@ -171,6 +183,11 @@ void free_query_v3(struct igmp_query_v3 *query)
 	free_source_address_list(&query->source_list);
 }
 
+/*
+ * returns:
+ * next valid lower Max Resp Code for given time in 100ms steps
+ * (see RFC 3376, sec. 4.1.1 for details)
+ */
 unsigned char time_to_max_resp_code(unsigned int time)
 {
 	unsigned char tmp = 128U;
@@ -319,6 +336,10 @@ void set_query_v3_add_source_address_struct(struct igmp_query_v3 *query, const s
 	query->number_of_sources++;
 }
 
+/*
+ * returns:
+ * pointer to malloc'd query data
+ */
 unsigned char *create_query_v3(const struct igmp_query_v3 *query, size_t *query_raw_len)
 {
 	size_t msg_len = 0U;
@@ -412,6 +433,11 @@ void set_group_record_v3_add_source_address(struct igmp_group_record_v3 *record,
 	record->number_of_sources++;
 }
 
+/*
+ * returns:
+ * -1 ... IGMPv3 group record invalid (e. g. wrong record type)
+ * 0 ... IGMPv3 group record valid
+ */
 int parse_group_record_v3(struct igmp_group_record_v3 *record, size_t *record_len, const unsigned char raw_message[], size_t raw_message_len, const char **error_string)
 {
 	unsigned int srcnum = 0U;
@@ -542,6 +568,10 @@ void group_record_v3_list_add(struct group_record_v3_list *list, const struct ig
 	}
 }
 
+/*
+ * returns:
+ * group record struct at given index (starting from 0)
+ */
 struct igmp_group_record_v3 group_record_v3_list_get(const struct group_record_v3_list *list, size_t index)
 {
 	size_t i = 0U;
@@ -598,6 +628,11 @@ void set_report_v3_add_group_record(struct igmp_report_v3 *report, const struct 
 	report->number_of_records++;
 }
 
+/*
+ * returns:
+ * -1 ... IGMPv3 report invalid (e. g. too short)
+ * 0 ... IGMPv3 report valid
+ */
 int parse_report_v3(struct igmp_report_v3 *report, const unsigned char raw_message[], size_t raw_message_len, const char **error_string)
 {
 	int status = 0;

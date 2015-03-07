@@ -33,6 +33,7 @@
 
 #define _POSIX_C_SOURCE 200112L
 
+/* size of report receive buffer in byte */
 #define RECBUF_SIZE 65535U
 
 #define SOCK_ERROR_CREATE "could not create socket descriptor"

@@ -49,6 +49,10 @@ void set_query_v2_group_address_struct(struct igmp_query_v2 *query, const struct
 	query->group_address = *group_address;
 }
 
+/*
+ * returns:
+ * pointer to malloc'd query data
+ */
 unsigned char *create_query_v2(const struct igmp_query_v2 *query)
 {
 	unsigned char *tmp = NULL;
@@ -92,6 +96,11 @@ void set_report_v2_group_address(struct igmp_report_v2 *report, unsigned int gro
 	int_to_ipv4_address(&report->group_address, group_address);
 }
 
+/*
+ * returns:
+ * -1 ... IGMPv2 report invalid (e. g. too short)
+ * 0 ... IGMPv2 report valid
+ */
 int parse_report_v2(struct igmp_report_v2 *report, const unsigned char raw_message[], size_t raw_message_len, const char **error_string)
 {
 	unsigned int addr = 0U;
@@ -132,6 +141,11 @@ void set_leave_group_v2_group_address(struct igmp_leave_group_v2 *leave, unsigne
 	int_to_ipv4_address(&leave->group_address, group_address);
 }
 
+/*
+ * returns:
+ * -1 ... IGMPv2 leave group invalid (e. g. too short)
+ * 0 ... IGMPv2 leave group valid
+ */
 int parse_leave_group_v2(struct igmp_leave_group_v2 *leave, const unsigned char raw_message[], size_t raw_message_len, const char **error_string)
 {
 	unsigned int addr = 0U;
